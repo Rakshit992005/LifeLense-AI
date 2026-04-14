@@ -1,0 +1,17 @@
+/* Healthcare UI Theme Variables */
+:root {
+  --primary-color: #2563eb; /* Strong trustworthy blue (tailwind blue-600) */
+  --secondary-color: #10b981; /* Fresh health green (tailwind emerald-500) */
+  --background-color: #f8fafc; /* Very light slate for a premium feel */
+  --card-color: #ffffff; /* Pure white */
+  --text-color: #0f172a; /* Very dark slate for high contrast */
+  --accent-color: #ef4444; /* Alert red */
+}
+
+body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
