@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import { extractTextFromImage } from '../utils/ocr.js';
 
 const router = express.Router();
 
@@ -51,7 +52,7 @@ const upload = multer({
   fileFilter: fileFilter,
   limits: {
     // Optional: limit file size to 10MB to avoid oversized file uploads
-    fileSize: 10 * 1024 * 1024 
+    fileSize: 100 * 1024 * 1024 
   }
 });
 
@@ -60,7 +61,7 @@ const upload = multer({
 // ============================================
 // We expect a POST request to '/api/upload' 
 // `upload.single('report')` means we extract a single file from the field named 'report'
-router.post('/', upload.single('report'), (req, res) => {
+router.post('/', upload.single('report'), async (req, res) => {
   try {
     // Check if multer intercepted the file and attached it to `req.file`
     if (!req.file) {
@@ -70,20 +71,34 @@ router.post('/', upload.single('report'), (req, res) => {
       });
     }
 
-    // Success flow!
-    // In future stages (Day 2+), you would pass `req.file.path` to your OCR and AI utility functions here.
+    // Run OCR if the file is an image
+    let extractedText = null;
     
-    // Return a success JSON response detailing the saved file
+    if (req.file.mimetype.startsWith('image/')) {
+      console.log('Running OCR on uploaded image...');
+      try {
+        extractedText = await extractTextFromImage(req.file.path);
+        console.log('OCR Extraction successful. Length:', extractedText.length);
+      } catch (ocrError) {
+        console.error('OCR Processing failed:', ocrError);
+      }
+    } else if (req.file.mimetype === 'application/pdf') {
+       // Tesseract cannot parse PDFs directly without conversion
+       extractedText = "[PDF detected. Text parsing not yet processed natively. Please upload images for OCR.]";
+    }
+
+    // Return a success JSON response detailing the saved file and extracted text
     return res.status(200).json({
       success: true,
-      message: 'File successfully uploaded to local storage.',
+      message: 'File successfully uploaded and processed.',
       file: {
         filename: req.file.filename,
         originalName: req.file.originalname,
         path: req.file.path,
         mimetype: req.file.mimetype,
         size: req.file.size
-      }
+      },
+      extractedText: extractedText
     });
 
   } catch (error) {

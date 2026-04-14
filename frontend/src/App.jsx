@@ -9,36 +9,54 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [resultData, setResultData] = useState(null);
 
-  // Mock function to handle upload
-  const handleUpload = (file) => {
+  const handleUpload = async (file) => {
     setIsLoading(true);
     setResultData(null);
     
-    // Simulate AI processing time with timeout
-    setTimeout(() => {
-      // Mock data representing the returned AI analysis
-      const mockAnalysisResult = {
-        summary: "The Complete Blood Count (CBC) report indicates generally normal blood parameters, though there are slight irregularities in hemoglobin levels taking into consideration the patient's age and history. White blood cells are within the healthy range.",
+    try {
+      // 1. Prepare file in FormData to be sent to the backend
+      const formData = new FormData();
+      formData.append('report', file);
+
+      // 2. Make actual HTTP request to backend
+      const response = await fetch('http://localhost:5000/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error occurred during upload.');
+      }
+
+      // 3. Right now we only have OCR running in the backend.
+      // If we got extracted text, we display it simply. Once Gemini is wired in, this will be real.
+      const aiMockResponse = {
+        summary: data.extractedText 
+          ? `(OCR SUCCESS) Here is a snippet of the extracted text: "${data.extractedText.substring(0, 200)}..." -> (AI Analysis pending Gemini Integration).`
+          : "File uploaded successfully. Pending AI text extraction and analysis.",
         abnormalValues: [
-          "Hemoglobin: 11.2 g/dL (Low, Ref: 12.0 - 15.5 g/dL)",
-          "Vitamin D: 18 ng/mL (Deficient, Ref: 20 - 50 ng/mL)"
+          "Waiting for Gemini AI integration to categorize anomalies..."
         ],
         suggestions: [
-          "Incorporate iron-rich foods like spinach, red meat, and lentils into your diet.",
-          "Consider discussing a Vitamin D supplement with your primary physician.",
-          "Get early morning sunlight exposure for 15-20 minutes daily.",
-          "Maintain daily hydration levels above 2.5 liters."
+          "Currently displaying successful OCR payload.",
+          "Check backend console for the full Tesseract extraction log."
         ]
       };
-      setResultData(mockAnalysisResult);
-      setIsLoading(false);
       
+      setResultData(aiMockResponse);
+
+    } catch (error) {
+      console.error("Failed to upload:", error);
+      alert("Upload failed: " + error.message);
+    } finally {
+      setIsLoading(false);
       // Auto-scroll to results smoothly
       setTimeout(() => {
         document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
-      
-    }, 2800);
+    }
   };
 
   return (
