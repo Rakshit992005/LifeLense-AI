@@ -74,10 +74,15 @@ router.post('/', upload.single('report'), async (req, res) => {
     }
 
     // 2. Custom Agent Analysis
+    let preprocessResult = null;
+    let criticalAlerts = [];
     if (extractedText && extractedText.trim().length > 0) {
       console.log('Running Custom Agent Analysis on extracted text...');
       try {
-         aiAnalysis = await analyzeWithAgent(extractedText);
+         const agentResult = await analyzeWithAgent(extractedText);
+         aiAnalysis = agentResult.analysis;
+         preprocessResult = agentResult.preprocessResult;
+         criticalAlerts = agentResult.criticalAlerts || [];
          console.log('Custom Agent Analysis successful.');
       } catch (agentError) {
          console.error('Agent Analysis failed:', agentError);
@@ -98,6 +103,8 @@ router.post('/', upload.single('report'), async (req, res) => {
         size: req.file.size
       },
       extractedText: extractedText,
+      preprocessResult: preprocessResult,
+      criticalAlerts: criticalAlerts,
       analysis: aiAnalysis
     });
 
