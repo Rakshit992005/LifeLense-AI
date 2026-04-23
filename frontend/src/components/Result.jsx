@@ -7,6 +7,10 @@ const Result = ({ data }) => {
 
   if (!data) return null;
 
+  const analysis = data.analysis;
+  const isRaw = typeof analysis === 'string' || analysis.rawAnalysis !== undefined;
+  const rawText = isRaw ? (analysis.rawAnalysis || analysis) : null;
+
   const applyHighlights = (text, extractedValues, criticalAlerts) => {
     let processed = text;
     
@@ -148,12 +152,27 @@ const Result = ({ data }) => {
     doc.setFont("helvetica", "normal");
     
     // Strip markdown
-    const plainTextAnalysis = (data.analysis || "No analysis available.")
-      .replace(/\*\*(.*?)\*\*/g, '$1')
-      .replace(/\*(.*?)\*/g, '$1')
-      .replace(/__(.*?)__/g, '$1')
-      .replace(/_(.*?)_/g, '$1')
-      .replace(/#/g, '');
+    let plainTextAnalysis = "";
+    if (isRaw) {
+      plainTextAnalysis = (rawText || "No analysis available.")
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/__(.*?)__/g, '$1')
+        .replace(/_(.*?)_/g, '$1')
+        .replace(/#/g, '');
+    } else {
+      plainTextAnalysis = `Report Summary:
+${analysis.summary}
+
+Risk Level: ${analysis.riskLevel}
+${analysis.riskReason}
+
+Key Findings/Critical:
+${analysis.criticalFindings && analysis.criticalFindings.length > 0 ? analysis.criticalFindings.join('\n') : 'None'}
+
+Recommendations:
+${analysis.recommendations ? analysis.recommendations.join('\n') : ''}`;
+    }
 
     const highlightedRaw = applyHighlights(plainTextAnalysis, data.preprocessResult?.extractedValues, data.criticalAlerts);
 
@@ -292,30 +311,122 @@ const Result = ({ data }) => {
       <div className="p-8 md:p-10 space-y-10 text-[var(--text-color)]">
         
         {/* MedGemma Analysis */}
-        <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm max-w-none">
-          {/* Legend */}
-          <div className="flex flex-wrap items-center gap-4 mb-6 pb-4 border-b border-gray-200 text-sm">
-            <div className="flex items-center space-x-2">
-              <span style={{background:'#fee2e2', color:'#dc2626', fontWeight:'bold', padding:'2px 8px', borderRadius:'4px'}}>🔴 Critical</span>
+        {isRaw ? (
+          <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm max-w-none">
+            {/* Legend */}
+            <div className="flex flex-wrap items-center gap-4 mb-6 pb-4 border-b border-gray-200 text-sm">
+              <div className="flex items-center space-x-2">
+                <span style={{background:'#fee2e2', color:'#dc2626', fontWeight:'bold', padding:'2px 8px', borderRadius:'4px'}}>🔴 Critical</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span style={{background:'#fef9c3', color:'#b45309', fontWeight:'bold', padding:'2px 8px', borderRadius:'4px'}}>🟡 Borderline</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span style={{background:'#dcfce7', color:'#16a34a', fontWeight:'bold', padding:'2px 8px', borderRadius:'4px'}}>🟢 Normal</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span style={{background:'#dbeafe', color:'#1d4ed8', fontWeight:'bold', padding:'2px 8px', borderRadius:'4px'}}>🔵 Lab Values</span>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <span style={{background:'#fef9c3', color:'#b45309', fontWeight:'bold', padding:'2px 8px', borderRadius:'4px'}}>🟡 Borderline</span>
+            
+            <div 
+              className="prose prose-blue max-w-none"
+              dangerouslySetInnerHTML={{ 
+                __html: highlightAnalysis(rawText, data.preprocessResult?.extractedValues, data.criticalAlerts) 
+              }} 
+            />
+          </section>
+        ) : (
+          <div className="space-y-6">
+            {/* Card 1 — Summary */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center space-y-3 md:space-y-0 md:space-x-3 mb-4">
+                <span className="text-2xl">🩺</span>
+                <h3 className="text-xl font-bold text-gray-800">Report Summary</h3>
+                <span className="md:ml-auto inline-block self-start bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                  {analysis.reportType}
+                </span>
+              </div>
+              <p className="text-gray-700 leading-relaxed text-sm md:text-base">{analysis.summary}</p>
             </div>
-            <div className="flex items-center space-x-2">
-              <span style={{background:'#dcfce7', color:'#16a34a', fontWeight:'bold', padding:'2px 8px', borderRadius:'4px'}}>🟢 Normal</span>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Card 2 — Risk Level */}
+              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center items-center text-center">
+                <div className="text-gray-500 font-bold uppercase tracking-wider text-sm mb-2">Overall Risk</div>
+                <div className={`text-4xl font-black mb-2 ${
+                  analysis.riskLevel === 'Low' ? 'text-green-500' :
+                  analysis.riskLevel === 'Moderate' ? 'text-yellow-500' :
+                  analysis.riskLevel === 'Critical' ? 'text-red-600 animate-pulse' :
+                  'text-red-500'
+                }`}>
+                  {analysis.riskLevel === 'Low' ? '🟢' : analysis.riskLevel === 'Moderate' ? '🟡' : analysis.riskLevel === 'Critical' ? '🚨' : '🔴'} {analysis.riskLevel}
+                </div>
+                <p className="text-sm text-gray-500 mt-2">{analysis.riskReason}</p>
+              </div>
+
+              {/* Card 4 — Critical Findings */}
+              {analysis.criticalFindings && analysis.criticalFindings.length > 0 ? (
+                <div className="bg-red-50 p-6 rounded-2xl border border-red-200 shadow-sm animate-[pulse_2s_ease-in-out_infinite] border-2">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <span className="text-2xl">⚠️</span>
+                    <h3 className="text-lg font-bold text-red-700">Critical Findings</h3>
+                  </div>
+                  <ul className="list-disc pl-5 space-y-1 text-red-600 font-bold text-sm">
+                    {analysis.criticalFindings.map((finding, idx) => (
+                      <li key={idx}>{finding}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="bg-green-50 p-6 rounded-2xl border border-green-100 shadow-sm flex flex-col justify-center items-center text-center h-full">
+                  <span className="text-3xl mb-2">✅</span>
+                  <h3 className="text-lg font-bold text-green-700">No Critical Findings</h3>
+                </div>
+              )}
             </div>
-            <div className="flex items-center space-x-2">
-              <span style={{background:'#dbeafe', color:'#1d4ed8', fontWeight:'bold', padding:'2px 8px', borderRadius:'4px'}}>🔵 Lab Values</span>
+
+            {/* Card 3 — Key Values */}
+            {analysis.keyValues && analysis.keyValues.length > 0 && (
+              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Key Lab Values</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {analysis.keyValues.map((kv, idx) => {
+                    let badgeColor = "bg-green-100 text-green-700";
+                    if (kv.status === "Borderline") badgeColor = "bg-yellow-100 text-yellow-700";
+                    else if (kv.status === "High" || kv.status === "Low") badgeColor = "bg-orange-100 text-orange-700";
+                    else if (kv.status === "Critical") badgeColor = "bg-red-500 text-white animate-pulse shadow-md";
+
+                    return (
+                      <div key={idx} className="flex flex-col p-3 border border-gray-100 rounded-xl bg-gray-50">
+                        <span className="text-xs text-gray-500 font-semibold uppercase">{kv.name}</span>
+                        <div className="flex justify-between items-end mt-1">
+                          <span className="text-lg font-black text-gray-800">{kv.value} <span className="text-xs text-gray-500 font-normal">{kv.unit}</span></span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${badgeColor}`}>
+                            {kv.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Card 5 — Recommendations */}
+            <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 shadow-sm">
+              <div className="flex items-center space-x-3 mb-4">
+                <span className="text-2xl">💊</span>
+                <h3 className="text-lg font-bold text-blue-800">Recommendations</h3>
+              </div>
+              <ol className="list-decimal pl-5 space-y-3 text-blue-900 text-sm">
+                {analysis.recommendations && analysis.recommendations.map((rec, idx) => (
+                  <li key={idx} className="pl-1 leading-relaxed">{rec}</li>
+                ))}
+              </ol>
             </div>
           </div>
-          
-          <div 
-            className="prose prose-blue max-w-none"
-            dangerouslySetInnerHTML={{ 
-              __html: highlightAnalysis(data.analysis, data.preprocessResult?.extractedValues, data.criticalAlerts) 
-            }} 
-          />
-        </section>
+        )}
 
         {/* Raw Extracted Text Accordion */}
         <section className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">

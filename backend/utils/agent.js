@@ -36,12 +36,24 @@ export const preprocessReport = (text) => {
 
     const promptValues = extractedValues.map(v => `- ${v.name}: ${v.value} ${v.unit}`).join('\n');
 
-    const structuredPrompt = `Report Type: ${displayType}
+    const structuredPrompt = `You are an expert medical AI assistant. Analyze the medical report and respond ONLY with a valid JSON object, no extra text, no markdown backticks. Use this exact structure:
+{
+  "reportType": "${displayType}",
+  "summary": "2-3 sentence plain English summary of the overall report",
+  "riskLevel": "Low" | "Moderate" | "High" | "Critical",
+  "riskReason": "One sentence explaining why this risk level was assigned",
+  "keyValues": [
+    { "name": "Total Cholesterol", "value": "100", "unit": "mg/dL", "status": "Normal" | "Borderline" | "High" | "Low" | "Critical" }
+  ],
+  "criticalFindings": ["finding 1", "finding 2"],
+  "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"]
+}
+
+Report Type: ${displayType}
 Extracted Values:
 ${promptValues}
 
-Full Report Text: ${text}
-Please analyze this medical report and provide: 1) Key findings, 2) Abnormal values with explanation, 3) Risk level (Low/Moderate/High), 4) Recommendations.`;
+Full Report Text: ${text}`;
 
     return {
         preprocessResult: { reportType, extractedValues },
@@ -106,8 +118,23 @@ export const analyzeWithAgent = async (text) => {
         console.log("Response from local Ollama API:", response);
 
         const data = await response.json();
+        
+        let analysisResult;
+        try {
+            let rawText = data.response.trim();
+            if (rawText.startsWith('```json')) {
+                rawText = rawText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+            } else if (rawText.startsWith('```')) {
+                rawText = rawText.replace(/^```\n?/, '').replace(/\n?```$/, '');
+            }
+            analysisResult = JSON.parse(rawText);
+        } catch (e) {
+            console.error("Failed to parse JSON from AI response:", e);
+            analysisResult = { rawAnalysis: data.response };
+        }
+
         return {
-            analysis: data.response,
+            analysis: analysisResult,
             preprocessResult,
             criticalAlerts
         };
