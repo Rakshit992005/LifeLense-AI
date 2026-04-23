@@ -20,7 +20,7 @@ const Loader = () => {
         </div>
       </div>
       
-      <h3 className="text-3xl font-extrabold text-[var(--text-color)] mb-3 tracking-tight z-10 animate-pulse">Analyzing logic...</h3>
+      <h3 className="text-3xl font-extrabold text-[var(--text-color)] mb-3 tracking-tight z-10 animate-pulse">MedGemma is analyzing your report...</h3>
       <p className="text-gray-500 font-medium text-lg z-10">Extracting parameters and cross-referencing health databases.</p>
 
       {/* Progress Fake Bar */}

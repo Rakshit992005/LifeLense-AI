@@ -30,22 +30,10 @@ const App = () => {
         throw new Error(data.message || 'Error occurred during upload.');
       }
 
-      // 3. Right now we only have OCR running in the backend.
-      // If we got extracted text, we display it simply. Once Gemini is wired in, this will be real.
-      const aiMockResponse = {
-        summary: data.extractedText 
-          ? `(OCR SUCCESS) Here is a snippet of the extracted text: "${data.extractedText.substring(0, 200)}..." -> (AI Analysis pending Gemini Integration).`
-          : "File uploaded successfully. Pending AI text extraction and analysis.",
-        abnormalValues: [
-          "Waiting for Gemini AI integration to categorize anomalies..."
-        ],
-        suggestions: [
-          "Currently displaying successful OCR payload.",
-          "Check backend console for the full Tesseract extraction log."
-        ]
-      };
-      
-      setResultData(aiMockResponse);
+      setResultData({
+        extractedText: data.extractedText,
+        analysis: data.analysis
+      });
 
     } catch (error) {
       console.error("Failed to upload:", error);

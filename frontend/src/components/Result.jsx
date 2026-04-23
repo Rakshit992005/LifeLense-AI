@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { marked } from 'marked';
 
 const Result = ({ data }) => {
+  const [showRawText, setShowRawText] = useState(false);
+
   if (!data) return null;
 
   return (
@@ -29,74 +32,30 @@ const Result = ({ data }) => {
       {/* Grid Layout inside the Card */}
       <div className="p-8 md:p-10 space-y-10 text-[var(--text-color)]">
         
-        {/* Top: Summary Section */}
-        <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="bg-white p-3 rounded-xl shadow-sm text-blue-500">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900">Executive Summary</h3>
-          </div>
-          <p className="text-gray-700 leading-relaxed font-medium md:pl-16 md:text-lg">
-            {data.summary || "No summary available."}
-          </p>
+        {/* MedGemma Analysis */}
+        <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm max-w-none">
+          <div 
+            className="prose prose-blue"
+            dangerouslySetInnerHTML={{ __html: marked(data.analysis || 'No analysis available.') }} 
+          />
         </section>
 
-        {/* Middle: Anomalies and Suggestions Layout side-by-side on desktop */}
-        <div className="grid md:grid-cols-2 gap-8">
-          
-          {/* Abnormalities / Anomalies */}
-          <section className="p-6 rounded-2xl border border-red-100 bg-red-50/30 flex flex-col h-full shadow-sm">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="bg-red-100 p-2.5 rounded-xl text-[var(--accent-color)] shadow-sm">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Attention Required</h3>
+        {/* Raw Extracted Text Accordion */}
+        <section className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <button 
+            className="w-full bg-gray-50 p-4 text-left font-bold text-gray-700 flex justify-between items-center hover:bg-gray-100 transition-colors"
+            onClick={() => setShowRawText(!showRawText)}
+          >
+            Raw Extracted Text
+            <span>{showRawText ? '▲' : '▼'}</span>
+          </button>
+          {showRawText && (
+            <div className="p-6 bg-white overflow-x-auto text-sm text-gray-600 whitespace-pre-wrap font-mono">
+              {data.extractedText || 'No text extracted.'}
             </div>
-            
-            {data.abnormalValues && data.abnormalValues.length > 0 ? (
-              <ul className="space-y-4 flex-1">
-                {data.abnormalValues.map((item, index) => (
-                  <li key={index} className="flex items-start bg-white p-4 rounded-xl shadow-sm border border-red-50 text-[var(--accent-color)] font-semibold group cursor-default hover:border-red-200 transition-colors">
-                    <span className="bg-red-100 text-red-600 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3 flex-shrink-0 mt-0.5">!</span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 p-5 rounded-xl flex flex-col items-center justify-center text-center flex-1 h-full font-medium">
-                <svg className="w-10 h-10 mb-2 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
-                Excellent! No abnormal values detected in this report.
-              </div>
-            )}
-          </section>
+          )}
+        </section>
 
-          {/* Health Suggestions */}
-          <section className="p-6 rounded-2xl border border-blue-100 bg-emerald-50/30 flex flex-col h-full shadow-sm">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="bg-emerald-100 p-2.5 rounded-xl text-[var(--secondary-color)] shadow-sm">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Actionable Steps</h3>
-            </div>
-            
-            {data.suggestions && data.suggestions.length > 0 ? (
-              <div className="flex flex-col gap-4 flex-1">
-                {data.suggestions.map((item, index) => (
-                  <div key={index} className="bg-white border border-emerald-100 p-4 rounded-xl flex items-start shadow-sm hover:border-emerald-200 transition-colors cursor-default">
-                    <div className="bg-emerald-100 text-[var(--secondary-color)] rounded-full w-7 h-7 flex items-center justify-center font-bold text-sm mr-4 mt-0.5 flex-shrink-0">
-                      {index + 1}
-                    </div>
-                    <span className="text-gray-700 font-medium leading-relaxed">{item}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 italic">No specific suggestions generated. Consult your doctor.</p>
-            )}
-          </section>
-          
-        </div>
       </div>
       
       {/* Card Footer action point */}

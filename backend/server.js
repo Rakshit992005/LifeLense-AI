@@ -43,6 +43,19 @@ app.get('/', (req, res) => {
   res.send('LifeLense AI Backend is running!');
 });
 
+// Ollama health check route
+app.get('/api/health/ollama', async (req, res) => {
+  try {
+    const response = await fetch('http://localhost:11434/');
+    if (response.ok) {
+      return res.status(200).json({ status: 'running', message: 'Ollama is running locally.' });
+    }
+    return res.status(503).json({ status: 'error', message: `Ollama responded with status ${response.status}` });
+  } catch (error) {
+    return res.status(503).json({ status: 'offline', message: 'Ollama is offline or unreachable.' });
+  }
+});
+
 // Configure the port and start the server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

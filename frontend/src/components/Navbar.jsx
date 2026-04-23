@@ -1,6 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const Navbar = () => {
+  const [isOllamaOnline, setIsOllamaOnline] = useState(false);
+
+  useEffect(() => {
+    const checkOllamaStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/health/ollama');
+        if (response.ok) {
+          setIsOllamaOnline(true);
+        } else {
+          setIsOllamaOnline(false);
+        }
+      } catch (error) {
+        setIsOllamaOnline(false);
+      }
+    };
+
+    checkOllamaStatus();
+    const interval = setInterval(checkOllamaStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
   return (
     <nav className="w-full bg-[var(--card-color)] border-b border-gray-100 shadow-sm sticky top-0 z-50 transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -20,6 +40,12 @@ const Navbar = () => {
 
           {/* Navigation Links */}
           <div className="hidden md:flex items-center space-x-8 text-sm font-semibold">
+            <div className="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
+              <span className="text-xs">{isOllamaOnline ? '🟢' : '🔴'}</span>
+              <span className={`text-xs font-bold ${isOllamaOnline ? 'text-emerald-600' : 'text-red-500'}`}>
+                {isOllamaOnline ? 'AI Online' : 'AI Offline'}
+              </span>
+            </div>
             <a href="#how-it-works" className="text-gray-500 hover:text-[var(--primary-color)] transition-colors">How it Works</a>
             <a href="#upload" className="text-gray-500 hover:text-[var(--primary-color)] transition-colors">Analyzer</a>
             <a href="#upload" className="bg-blue-50 text-[var(--primary-color)] px-5 py-2.5 rounded-lg hover:bg-blue-100 transition-colors">
