@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { marked } from 'marked';
 import { jsPDF } from 'jspdf';
+import EnvironmentCard from './EnvironmentCard';
 
 const Result = ({ data }) => {
   const [showRawText, setShowRawText] = useState(false);
@@ -137,114 +138,332 @@ const Result = ({ data }) => {
       });
     }
 
-    addFooter();
+    // --- Page 2 (or continue on Page 1) ---
+    let hasPage1Content = false;
+    if (data.preprocessResult && data.preprocessResult.extractedValues && data.preprocessResult.extractedValues.length > 0) hasPage1Content = true;
+    if (data.criticalAlerts && data.criticalAlerts.length > 0) hasPage1Content = true;
 
-    // --- Page 2 ---
-    doc.addPage();
-    yPos = margin + 10;
+    if (hasPage1Content) {
+        addFooter();
+        doc.addPage();
+        yPos = margin + 10;
+    } else {
+        yPos += 10;
+    }
+
     doc.setFontSize(18);
     doc.setTextColor(0);
     doc.setFont("helvetica", "bold");
-    doc.text("MedGemma AI Analysis", margin, yPos);
+    doc.text("LifeLense AI Analysis", margin, yPos);
     yPos += 15;
 
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
     
-    // Strip markdown
-    let plainTextAnalysis = "";
+    // Strip markdown or Draw beautiful structured cards
     if (isRaw) {
-      plainTextAnalysis = (rawText || "No analysis available.")
-        .replace(/\*\*(.*?)\*\*/g, '$1')
-        .replace(/\*(.*?)\*/g, '$1')
-        .replace(/__(.*?)__/g, '$1')
-        .replace(/_(.*?)_/g, '$1')
-        .replace(/#/g, '');
-    } else {
-      plainTextAnalysis = `Report Summary:
-${analysis.summary}
+        let plainTextAnalysis = (rawText || "No analysis available.")
+            .replace(/\*\*(.*?)\*\*/g, '$1')
+            .replace(/\*(.*?)\*/g, '$1')
+            .replace(/__(.*?)__/g, '$1')
+            .replace(/_(.*?)_/g, '$1')
+            .replace(/#/g, '');
 
-Risk Level: ${analysis.riskLevel}
-${analysis.riskReason}
+        const highlightedRaw = applyHighlights(plainTextAnalysis, data.preprocessResult?.extractedValues, data.criticalAlerts);
 
-Key Findings/Critical:
-${analysis.criticalFindings && analysis.criticalFindings.length > 0 ? analysis.criticalFindings.join('\n') : 'None'}
+        const tokens = [];
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = highlightedRaw.replace(/\n/g, '<br/>');
 
-Recommendations:
-${analysis.recommendations ? analysis.recommendations.join('\n') : ''}`;
-    }
-
-    const highlightedRaw = applyHighlights(plainTextAnalysis, data.preprocessResult?.extractedValues, data.criticalAlerts);
-
-    const tokens = [];
-    const spanRegex = /<span style="background:(.*?); color:(.*?);[^>]*>(.*?)<\/span>/gi;
-    let lastIndex = 0;
-    let match;
-    while ((match = spanRegex.exec(highlightedRaw)) !== null) {
-        if (match.index > lastIndex) {
-            tokens.push({ text: highlightedRaw.slice(lastIndex, match.index), color: null });
-        }
-        tokens.push({ text: match[3], color: match[2], bg: match[1] });
-        lastIndex = spanRegex.lastIndex;
-    }
-    if (lastIndex < highlightedRaw.length) {
-        tokens.push({ text: highlightedRaw.slice(lastIndex), color: null });
-    }
-
-    let cursorX = margin;
-    let cursorY = yPos;
-    const lineHeight = 6;
-    const maxW = pageWidth - margin;
-    
-    tokens.forEach(token => {
-        const chunks = token.text.split(/([ \n])/);
-        
-        if (token.color) {
-            doc.setTextColor(token.color);
-            doc.setFont("helvetica", "bold");
-        } else {
-            doc.setTextColor(0);
-            doc.setFont("helvetica", "normal");
-        }
-
-        chunks.forEach(chunk => {
-            if (chunk === '') return;
-            if (chunk === '\n') {
-                cursorX = margin;
-                cursorY += lineHeight;
-                return;
+        const rgbToHex = (rgb) => {
+            if (!rgb) return null;
+            if (rgb.startsWith('#')) return rgb;
+            const match = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+            if (match) {
+                return '#' + match.slice(1).map(n => parseInt(n, 10).toString(16).padStart(2, '0')).join('');
             }
-            
-            const w = doc.getTextWidth(chunk);
-            
-            if (chunk === ' ' && cursorX === margin) return;
-            
-            if (cursorX + w > maxW && chunk !== ' ') {
-                cursorX = margin;
-                cursorY += lineHeight;
-                if (cursorY > pageHeight - margin) {
-                    addFooter();
-                    doc.addPage();
-                    cursorY = margin + 10;
-                    if (token.color) {
-                        doc.setTextColor(token.color);
-                        doc.setFont("helvetica", "bold");
-                    } else {
-                        doc.setTextColor(0);
-                        doc.setFont("helvetica", "normal");
-                    }
+            return rgb;
+        };
+
+        const traverse = (node, currentBg, currentColor) => {
+            if (node.nodeType === 3) { // Node.TEXT_NODE
+                if (node.nodeValue) {
+                   tokens.push({ text: node.nodeValue, bg: rgbToHex(currentBg), color: rgbToHex(currentColor) });
+                }
+            } else if (node.nodeType === 1) { // Node.ELEMENT_NODE
+                if (node.tagName === 'BR') {
+                    tokens.push({ text: '\n', bg: null, color: null });
+                    return;
+                }
+                let bg = currentBg;
+                let color = currentColor;
+                if (node.tagName === 'SPAN') {
+                    bg = node.style.backgroundColor || currentBg;
+                    color = node.style.color || currentColor;
+                }
+                for (let child of node.childNodes) {
+                    traverse(child, bg, color);
                 }
             }
+        };
+        traverse(tempDiv, null, null);
+
+        let cursorX = margin;
+        let cursorY = yPos;
+        const lineHeight = 6;
+        const maxW = pageWidth - margin;
+        
+        tokens.forEach(token => {
+            const chunks = token.text.split(/([ \n])/);
             
-            if (token.bg && chunk.trim() !== '') {
-                doc.setFillColor(token.bg);
-                doc.rect(cursorX, cursorY - 4.5, w, lineHeight, 'F');
+            if (token.color) {
+                doc.setTextColor(token.color);
+                doc.setFont("helvetica", "bold");
+            } else {
+                doc.setTextColor(0);
+                doc.setFont("helvetica", "normal");
             }
-            
-            doc.text(chunk, cursorX, cursorY);
-            cursorX += w;
+
+            chunks.forEach(chunk => {
+                if (chunk === '') return;
+                if (chunk === '\n') {
+                    cursorX = margin;
+                    cursorY += lineHeight;
+                    return;
+                }
+                
+                const w = doc.getTextWidth(chunk);
+                
+                if (chunk === ' ' && cursorX === margin) return;
+                
+                if (cursorX + w > maxW && chunk !== ' ') {
+                    cursorX = margin;
+                    cursorY += lineHeight;
+                    if (cursorY > pageHeight - margin) {
+                        addFooter();
+                        doc.addPage();
+                        cursorY = margin + 10;
+                        if (token.color) {
+                            doc.setTextColor(token.color);
+                            doc.setFont("helvetica", "bold");
+                        } else {
+                            doc.setTextColor(0);
+                            doc.setFont("helvetica", "normal");
+                        }
+                    }
+                }
+                
+                if (token.bg && chunk.trim() !== '') {
+                    doc.setFillColor(token.bg);
+                    doc.rect(cursorX, cursorY - 4.5, w, lineHeight, 'F');
+                }
+                
+                doc.text(chunk, cursorX, cursorY);
+                cursorX += w;
+            });
         });
-    });
+    } else {
+        // Structured Data Renderer (Matches UI)
+        let cursorY = yPos;
+        const maxW = pageWidth - margin * 2;
+        
+        const checkBreak = (h) => {
+            if (cursorY + h > pageHeight - margin) {
+                addFooter();
+                doc.addPage();
+                cursorY = margin + 10;
+            }
+        };
+
+        // 1. Summary
+        const title1 = "Report Summary";
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        const summaryLines = doc.splitTextToSize(analysis.summary || "", maxW - 10);
+        let boxH = 15 + summaryLines.length * 6 + 5;
+        
+        checkBreak(boxH);
+        
+        doc.setFillColor(249, 250, 251); // bg-gray-50
+        doc.setDrawColor(229, 231, 235); // border-gray-200
+        doc.roundedRect(margin, cursorY, maxW, boxH, 3, 3, "FD");
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(14);
+        doc.setTextColor(31, 41, 55);
+        doc.text(title1, margin + 5, cursorY + 10);
+        
+        // Badge
+        doc.setFillColor(219, 234, 254); // blue-100
+        doc.setTextColor(29, 78, 216); // blue-700
+        doc.setFontSize(10);
+        const rType = analysis.reportType || "general";
+        doc.roundedRect(margin + doc.getTextWidth(title1) + 15, cursorY + 5, doc.getTextWidth(rType.toUpperCase()) + 10, 7, 2, 2, "F");
+        doc.text(rType.toUpperCase(), margin + doc.getTextWidth(title1) + 20, cursorY + 10);
+        
+        doc.setTextColor(75, 85, 99);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "normal");
+        doc.text(summaryLines, margin + 5, cursorY + 20);
+        
+        cursorY += boxH + 10;
+        
+        // 2. Risk Level
+        let riskColorRGB = [239, 68, 68]; // red
+        if (analysis.riskLevel === 'Low') riskColorRGB = [34, 197, 94]; // green
+        else if (analysis.riskLevel === 'Moderate') riskColorRGB = [234, 179, 8]; // yellow
+        
+        const riskReasonLines = doc.splitTextToSize(analysis.riskReason || "", maxW - 10);
+        boxH = 25 + riskReasonLines.length * 6 + 5;
+        
+        checkBreak(boxH);
+        
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(229, 231, 235);
+        doc.roundedRect(margin, cursorY, maxW, boxH, 3, 3, "FD");
+        
+        doc.setTextColor(107, 114, 128); // gray-500
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("OVERALL RISK", margin + maxW/2, cursorY + 10, { align: "center" });
+        
+        doc.setTextColor(...riskColorRGB);
+        doc.setFontSize(22);
+        doc.setFont("helvetica", "bold");
+        doc.text((analysis.riskLevel || "").toUpperCase(), margin + maxW/2, cursorY + 22, { align: "center" });
+        
+        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "normal");
+        doc.text(riskReasonLines, margin + maxW/2, cursorY + 30, { align: "center" });
+        
+        cursorY += boxH + 10;
+
+        // 3. Critical Findings
+        if (analysis.criticalFindings && analysis.criticalFindings.length > 0) {
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            const lines = analysis.criticalFindings.map(f => doc.splitTextToSize("• " + f, maxW - 10)).flat();
+            boxH = 20 + lines.length * 6 + 5;
+            checkBreak(boxH);
+            
+            doc.setFillColor(254, 242, 242); // red-50
+            doc.setDrawColor(254, 202, 202); // red-200
+            doc.roundedRect(margin, cursorY, maxW, boxH, 3, 3, "FD");
+            
+            doc.setTextColor(185, 28, 28); // red-700
+            doc.setFontSize(14);
+            doc.setFont("helvetica", "bold");
+            doc.text("Critical Findings", margin + 5, cursorY + 12);
+            
+            doc.setTextColor(220, 38, 38); // red-600
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "bold");
+            doc.text(lines, margin + 5, cursorY + 22);
+            
+            cursorY += boxH + 10;
+        }
+
+        // 4. Key Values (Grid)
+        if (analysis.keyValues && analysis.keyValues.length > 0) {
+            checkBreak(30);
+            doc.setTextColor(31, 41, 55);
+            doc.setFontSize(14);
+            doc.setFont("helvetica", "bold");
+            doc.text("Key Lab Values", margin, cursorY + 5);
+            cursorY += 10;
+            
+            const cols = 2; // 2 columns for PDF grid
+            const colW = (maxW - 5) / 2;
+            let currentX = margin;
+            let maxHInRow = 0;
+            
+            analysis.keyValues.forEach((kv, idx) => {
+                if (idx > 0 && idx % cols === 0) {
+                    cursorY += maxHInRow + 5;
+                    currentX = margin;
+                    maxHInRow = 0;
+                    checkBreak(35);
+                }
+                
+                let bgRGB = [220, 252, 231]; // green-100
+                let textRGB = [21, 128, 61]; // green-700
+                if (kv.status === "Borderline") {
+                    bgRGB = [254, 249, 195]; // yellow-100
+                    textRGB = [161, 98, 7]; // yellow-700
+                } else if (kv.status === "High" || kv.status === "Low") {
+                    bgRGB = [255, 237, 213]; // orange-100
+                    textRGB = [194, 65, 12]; // orange-700
+                } else if (kv.status === "Critical") {
+                    bgRGB = [239, 68, 68]; // red-500
+                    textRGB = [255, 255, 255]; // white
+                }
+                
+                // Box background
+                doc.setFillColor(249, 250, 251); // gray-50
+                doc.setDrawColor(229, 231, 235); // border
+                doc.roundedRect(currentX, cursorY, colW, 25, 3, 3, "FD");
+                
+                // Parameter Name
+                doc.setTextColor(107, 114, 128);
+                doc.setFontSize(9);
+                doc.setFont("helvetica", "bold");
+                doc.text((kv.name || "").toUpperCase(), currentX + 5, cursorY + 8);
+                
+                // Value & Unit
+                doc.setTextColor(31, 41, 55);
+                doc.setFontSize(14);
+                doc.setFont("helvetica", "bold");
+                const valText = `${kv.value}`;
+                doc.text(valText, currentX + 5, cursorY + 18);
+                
+                doc.setTextColor(107, 114, 128);
+                doc.setFontSize(9);
+                doc.setFont("helvetica", "normal");
+                doc.text(kv.unit || "", currentX + 5 + doc.getTextWidth(valText) + 2, cursorY + 18);
+                
+                // Status Badge
+                doc.setFillColor(...bgRGB);
+                const stat = (kv.status || "").toUpperCase();
+                const badgeW = doc.getTextWidth(stat) + 6;
+                doc.roundedRect(currentX + colW - badgeW - 5, cursorY + 12, badgeW, 8, 1.5, 1.5, "F");
+                doc.setTextColor(...textRGB);
+                doc.setFontSize(8);
+                doc.setFont("helvetica", "bold");
+                doc.text(stat, currentX + colW - badgeW - 2, cursorY + 17.5);
+                
+                maxHInRow = 25;
+                currentX += colW + 5;
+            });
+            cursorY += maxHInRow + 10;
+        }
+
+        // 5. Recommendations
+        if (analysis.recommendations && analysis.recommendations.length > 0) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(11);
+            const lines = analysis.recommendations.map((r, idx) => doc.splitTextToSize(`${idx + 1}. ${r}`, maxW - 10)).flat();
+            boxH = 20 + lines.length * 6 + 5;
+            checkBreak(boxH);
+            
+            doc.setFillColor(239, 246, 255); // blue-50
+            doc.setDrawColor(219, 234, 254); // blue-100
+            doc.roundedRect(margin, cursorY, maxW, boxH, 3, 3, "FD");
+            
+            doc.setTextColor(30, 64, 175); // blue-800
+            doc.setFontSize(14);
+            doc.setFont("helvetica", "bold");
+            doc.text("Recommendations", margin + 5, cursorY + 12);
+            
+            doc.setTextColor(30, 58, 138); // blue-900
+            doc.setFontSize(11);
+            doc.setFont("helvetica", "normal");
+            doc.text(lines, margin + 5, cursorY + 22);
+            
+            cursorY += boxH + 10;
+        }
+    }
 
     addFooter();
 
@@ -310,7 +529,7 @@ ${analysis.recommendations ? analysis.recommendations.join('\n') : ''}`;
       {/* Grid Layout inside the Card */}
       <div className="p-8 md:p-10 space-y-10 text-[var(--text-color)]">
         
-        {/* MedGemma Analysis */}
+        {/* AI Analysis */}
         {isRaw ? (
           <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm max-w-none">
             {/* Legend */}
@@ -385,6 +604,9 @@ ${analysis.recommendations ? analysis.recommendations.join('\n') : ''}`;
                 </div>
               )}
             </div>
+
+            {/* Environment Card */}
+            <EnvironmentCard analysisResult={analysis} />
 
             {/* Card 3 — Key Values */}
             {analysis.keyValues && analysis.keyValues.length > 0 && (

@@ -11,6 +11,8 @@ const __dirname = path.dirname(__filename);
 
 // Import routes
 import uploadRoute from './routes/upload.js';
+import environmentRoute from './routes/environment.js';
+import advisoryRoute from './routes/advisory.js';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -37,6 +39,8 @@ if (!fs.existsSync(uploadsDir)) {
 // Register our routes
 // Any request coming to '/api/upload' will be handled by uploadRoute
 app.use('/api/upload', uploadRoute);
+app.use('/api/environment', environmentRoute);
+app.use('/api/advisory', advisoryRoute);
 
 // Basic health check route to verify server is running
 app.get('/', (req, res) => {

@@ -143,3 +143,60 @@ export const analyzeWithAgent = async (text) => {
         throw new Error("Failed to get analysis from local AI model.");
     }
 };
+
+export const generateEnvironmentAdvisory = (analysisResult, environmentData) => {
+    const advisories = [];
+    if (!analysisResult || !environmentData) return advisories;
+
+    const { reportType, criticalFindings, summary } = analysisResult;
+    const { aqi, temperature, humidity, cityName } = environmentData;
+
+    const summaryText = (summary || "").toLowerCase();
+    const findingsText = (criticalFindings || []).join(" ").toLowerCase();
+    const combinedText = summaryText + " " + findingsText;
+
+    // RESPIRATORY CONDITIONS
+    if (/(asthma|bronchitis|lung|respiratory|copd|infection|pneumonia|chest|breathing)/.test(combinedText)) {
+        if (aqi >= 4) {
+            advisories.push({ level: "critical", message: `🚨 Your respiratory condition is at HIGH RISK today. Air quality is Poor/Hazardous in ${cityName}. Stay indoors, keep windows closed, and wear an N95 mask if you must go outside.` });
+        } else if (aqi === 3) {
+            advisories.push({ level: "warning", message: `⚠️ Moderate air quality may aggravate your respiratory condition. Limit outdoor activity and keep your medication/inhaler handy.` });
+        }
+    }
+
+    // DIABETES CONDITIONS
+    if (/(diabetes|glucose|hba1c|insulin|blood sugar)/.test(combinedText)) {
+        if (temperature > 38) {
+            advisories.push({ level: "warning", message: `🌡️ High temperature today in ${cityName} can affect blood sugar levels. Stay hydrated, avoid outdoor activity between 12–4 PM, and monitor glucose more frequently.` });
+        }
+        if (humidity > 80) {
+            advisories.push({ level: "info", message: `💧 High humidity increases infection risk for diabetic patients. Keep wounds dry and watch for skin issues.` });
+        }
+    }
+
+    // CARDIOVASCULAR CONDITIONS
+    if (/(cholesterol|ldl|cardiac|cardiovascular|heart)/.test(combinedText)) {
+        if (aqi >= 4) {
+            advisories.push({ level: "critical", message: `🚨 Hazardous air quality significantly increases cardiovascular risk for you today. Do NOT exercise outdoors. Stay indoors with air purification if possible.` });
+        }
+        if (temperature < 10) {
+            advisories.push({ level: "warning", message: `🥶 Cold weather increases blood pressure and heart attack risk. Layer up well and avoid sudden physical exertion outdoors.` });
+        }
+    }
+
+    // ANEMIA CONDITIONS
+    if (/(anemia|hemoglobin|iron deficiency)/.test(combinedText)) {
+        if (temperature > 35) {
+            advisories.push({ level: "warning", message: `☀️ Your anemia reduces your body's ability to handle heat. Avoid direct sun, stay hydrated, and rest frequently if outdoors in ${cityName}.` });
+        }
+    }
+
+    // GENERAL ADVISORIES
+    if (aqi === 4) {
+        advisories.push({ level: "warning", message: `😷 Air quality is Poor in ${cityName} today. Everyone should wear a mask outdoors.` });
+    } else if (aqi === 5) {
+        advisories.push({ level: "critical", message: `🏠 STAY HOME: Air quality is Hazardous in ${cityName}. Avoid all outdoor activity today.` });
+    }
+
+    return advisories;
+};
